@@ -6,8 +6,10 @@ import numpy as np;
 from sklearn import preprocessing, cross_validation;
 import math;
 import copy;
+from sklearn.ensemble import RandomForestRegressor;
 
 date_format = "%m/%d/%Y";
+imputations = [];
 
 def createListRepresentation(total, index):
     tt = [];
@@ -17,6 +19,8 @@ def createListRepresentation(total, index):
         else:
             tt.append(0);
     return tt;
+
+
 
 
 def computeFeatures(myfile, cities, ignore, train_or_test="train"):
@@ -60,8 +64,10 @@ def computeFeatures(myfile, cities, ignore, train_or_test="train"):
                       if data[i] in cities:
                         #City in both train and test
                         #Get the index
+                        #pass;
                         temp.extend(createListRepresentation(len(cities), cities.index(data[i])));
                       else:
+                        #pass;
                         temp.extend(createListRepresentation(len(cities), 1+ len(cities)));
                 elif i == 3:
                     if data[i] == "Big Cities":
@@ -85,10 +91,27 @@ def computeFeatures(myfile, cities, ignore, train_or_test="train"):
             if train_or_test == "train":
                labels.append(float(data[len(data)-1]));
 
+
+    
+    features = np.array(features);
+
+    
     if train_or_test == "train":
-      return np.array(features), np.array(labels), restaurant_ids;
+      #Impute Missing values for P1 to P37.
+      for i in range(35, len(features[0])):
+        imputations.append(np.mean(features[:, i]));
+
+
+    for i in range(0, len(features)):
+      for k in range(35, len(features[i])):
+         if features[i][k] == 0:
+            features[i][k] = imputations[k-35];
+    
+
+    if train_or_test == "train":
+      return features, np.array(labels), restaurant_ids;
     else:
-      return np.array(features), restaurant_ids;
+      return features, restaurant_ids;
 
 
 def calculate_RMSE(estimator, X, y):
@@ -100,56 +123,65 @@ def calculate_RMSE(estimator, X, y):
 
 
 def train_model(features, label):
-    params          = {'kernel' : 'linear' }
+    params          = {'max_features' : 'sqrt', 'n_estimators' : 100, 'n_jobs' : -1}
+    #params         = {'kernel' : 'linear' }
+
 
     #Preprocessing
     scaled_features = preprocessing.scale(features);
 
     # Set the parameters by cross-validation
-    paramaters_search = {'C': [0.0000001, 0.001, 0.005, 0.008, 0.01, 0.02, 0.05, 0.07, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 10, 100, 0.004]};
+    paramaters_search = {'max_depth': [2,3,4,5,6]};
 
+    # Set the parameters by cross-validation
+    #paramaters_search = {'C': [0.0000001, 0.001, 0.005, 0.008, 0.01, 0.02, 0.05, 0.07, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 10, 100, 0.004]};
 
     best_rmse         = sys.float_info.max;
     best_params       = None;
 
-    for ps in paramaters_search['C']:
-        params['C'] = ps;
+    for ps in paramaters_search.keys():
+        for param in paramaters_search[ps]:
+            params[str(ps)] = param;
 
-        total_rmse  = 0.0;
-        count       = 0;
+            total_rmse  = 0.0;
+            count       = 0;
 
-        loo         = cross_validation.LeaveOneOut(len(scaled_features));
-        for train_index, validation_index in loo:
+            lpo         = cross_validation.LeaveOneOut(len(scaled_features));
+            for train_index, validation_index in lpo:
 
-            X_train, X_validation = scaled_features[train_index], scaled_features[validation_index];
-            Y_train, Y_validation = label[train_index], label[validation_index];
+                X_train, X_validation = scaled_features[train_index], scaled_features[validation_index];
+                Y_train, Y_validation = label[train_index], label[validation_index];
 
-            svr_lin               = SVR(**params)
-            svr_lin.fit(X_train, Y_train);
+                #estimator               = SVR(**params)
+                estimator                = RandomForestRegressor(**params)
 
-            current_rmse          = calculate_RMSE(svr_lin, X_validation, Y_validation);
+                estimator.fit(X_train, Y_train);
 
-            total_rmse     += current_rmse;
-            count          += 1;
+                current_rmse          = calculate_RMSE(estimator, X_validation, Y_validation);
 
-        #Average across all samples
-        avg_current_rmse   = total_rmse / float(count);
-        #print("Avg Current RMSE " + str(avg_current_rmse));
+                total_rmse     += current_rmse;
+                count          += 1;
 
-        if avg_current_rmse < best_rmse:
-            best_rmse   = avg_current_rmse;
-            best_params = copy.deepcopy(params);
+            #Average across all samples
+            avg_current_rmse   = total_rmse / float(count);
+            #print("Avg Current RMSE " + str(avg_current_rmse));
+
+            if avg_current_rmse < best_rmse:
+                best_rmse   = avg_current_rmse;
+                best_params = copy.deepcopy(params);
 
 
 
     print("Best RMSE : " + str(best_rmse));
     print("Best Params : " + str(best_params));
 
-    #Train the model on the entire set
-    svr_lin               = SVR(**best_params)
-    svr_lin.fit(scaled_features, label);
 
-    return  svr_lin;
+    #Train the model on the entire set
+    estimator                = RandomForestRegressor(**params)
+    #estimator               = SVR(**best_params)
+    estimator.fit(scaled_features, label);
+
+    return  estimator;
 
 def predict_and_save(model, test_features, test_restaurant_ids):
     predictions = model.predict(test_features);
