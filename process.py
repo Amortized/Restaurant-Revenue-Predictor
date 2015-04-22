@@ -7,6 +7,8 @@ from sklearn import preprocessing, cross_validation;
 import math;
 import copy;
 from sklearn.ensemble import RandomForestRegressor;
+from sklearn.feature_selection import SelectKBest;
+from sklearn.feature_selection import f_regression;
 
 date_format = "%m/%d/%Y";
 imputations = [];
@@ -95,7 +97,7 @@ def computeFeatures(myfile, cities, ignore, train_or_test="train"):
     
     features = np.array(features);
 
-    
+    '''
     if train_or_test == "train":
       #Impute Missing values for P1 to P37.
       for i in range(35, len(features[0])):
@@ -106,7 +108,7 @@ def computeFeatures(myfile, cities, ignore, train_or_test="train"):
       for k in range(35, len(features[i])):
          if features[i][k] == 0:
             features[i][k] = imputations[k-35];
-    
+    '''
 
     if train_or_test == "train":
       return features, np.array(labels), restaurant_ids;
@@ -115,20 +117,24 @@ def computeFeatures(myfile, cities, ignore, train_or_test="train"):
 
 
 def calculate_RMSE(estimator, X, y):
+    f = open("data.txt", "a")
     y_hat = estimator.predict(X);
     error = 0;
     for i in range(0, len(y_hat)):
+        f.write(str(y_hat[i]) + "," + str(y[i]) + "\n");
         error += math.pow(y_hat[i] - y[i], 2);
     return math.sqrt(error/float(len(y_hat)));
+    f.close();
 
 
 def train_model(features, label):
-    params          = {'max_features' : 'sqrt', 'n_estimators' : 100, 'n_jobs' : -1}
+    params          = {'max_features' : 'sqrt', 'n_estimators' : 30, 'n_jobs' : -1, 'min_samples_leaf' : 3 }
     #params         = {'kernel' : 'linear' }
 
 
     #Preprocessing
-    scaled_features = preprocessing.scale(features);
+    #scaled_features = preprocessing.scale(features);
+    scaled_features  = features;
 
     # Set the parameters by cross-validation
     paramaters_search = {'max_depth': [2,3,4,5,6]};
@@ -208,6 +214,9 @@ if __name__ == '__main__':
     print("Generating Features Test data");
     test_features, test_restaurant_ids                 = computeFeatures("./data/test.csv", cities_in_train_test, 1, "test");
 
+    #train_features = SelectKBest(f_regression, k = 30).fit(train_features, train_labels);
+
+    
     model                                              = train_model(train_features, train_labels);
 
     print("Writing Output");
