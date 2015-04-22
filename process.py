@@ -7,8 +7,7 @@ from sklearn import preprocessing, cross_validation;
 import math;
 import copy;
 from sklearn.ensemble import RandomForestRegressor;
-from sklearn.feature_selection import SelectKBest;
-from sklearn.feature_selection import f_regression;
+from sklearn.grid_search import ParameterGrid;
 
 date_format = "%m/%d/%Y";
 imputations = [];
@@ -131,50 +130,55 @@ def train_model(features, label):
     params          = {'max_features' : 'sqrt', 'n_estimators' : 30, 'n_jobs' : -1, 'min_samples_leaf' : 3 }
     #params         = {'kernel' : 'linear' }
 
-
     #Preprocessing
     #scaled_features = preprocessing.scale(features);
     scaled_features  = features;
 
     # Set the parameters by cross-validation
-    paramaters_search = {'max_depth': [2,3,4,5,6]};
-
+    paramaters_grid   = {'max_depth': [2,3,4,5,6], 'min_samples_split' : [2,3,4,5,6,7,8,9,10]};
     # Set the parameters by cross-validation
-    #paramaters_search = {'C': [0.0000001, 0.001, 0.005, 0.008, 0.01, 0.02, 0.05, 0.07, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 10, 100, 0.004]};
+    #paramaters_grid    = {'C': [0.0000001, 0.001, 0.005, 0.008, 0.01, 0.02, 0.05, 0.07, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 10, 100, 0.004]};
+
+    paramaters_search = list(ParameterGrid(paramaters_grid));
+
 
     best_rmse         = sys.float_info.max;
     best_params       = None;
 
-    for ps in paramaters_search.keys():
-        for param in paramaters_search[ps]:
-            params[str(ps)] = param;
+    for ps in paramaters_search:
+        for param in ps.keys():
+            params[str(param)] = ps[param];
 
-            total_rmse  = 0.0;
-            count       = 0;
 
-            lpo         = cross_validation.LeaveOneOut(len(scaled_features));
-            for train_index, validation_index in lpo:
+        total_rmse  = 0.0;
+        count       = 0;
 
-                X_train, X_validation = scaled_features[train_index], scaled_features[validation_index];
-                Y_train, Y_validation = label[train_index], label[validation_index];
+        lpo         = cross_validation.LeaveOneOut(len(scaled_features));
+        for train_index, validation_index in lpo:
 
-                #estimator               = SVR(**params)
-                estimator                = RandomForestRegressor(**params)
+            X_train, X_validation = scaled_features[train_index], scaled_features[validation_index];
+            Y_train, Y_validation = label[train_index], label[validation_index];
 
-                estimator.fit(X_train, Y_train);
+            #estimator               = SVR(**params)
+            estimator                = RandomForestRegressor(**params)
 
-                current_rmse          = calculate_RMSE(estimator, X_validation, Y_validation);
+            estimator.fit(X_train, Y_train);
 
-                total_rmse     += current_rmse;
-                count          += 1;
+            current_rmse          = calculate_RMSE(estimator, X_validation, Y_validation);
 
-            #Average across all samples
-            avg_current_rmse   = total_rmse / float(count);
-            #print("Avg Current RMSE " + str(avg_current_rmse));
+            total_rmse     += current_rmse;
+            count          += 1;
 
-            if avg_current_rmse < best_rmse:
-                best_rmse   = avg_current_rmse;
-                best_params = copy.deepcopy(params);
+        #Average across all samples
+        avg_current_rmse   = total_rmse / float(count);
+        #print("Avg Current RMSE " + str(avg_current_rmse));
+
+        if avg_current_rmse < best_rmse:
+            best_rmse   = avg_current_rmse;
+            best_params = copy.deepcopy(params);
+
+        print(params);
+        print("RMSE : " + str(avg_current_rmse));
 
 
 
@@ -186,6 +190,7 @@ def train_model(features, label):
     estimator                = RandomForestRegressor(**params)
     #estimator               = SVR(**best_params)
     estimator.fit(scaled_features, label);
+    print(estimator.feature_importances_)
 
     return  estimator;
 
@@ -213,9 +218,6 @@ if __name__ == '__main__':
     train_features, train_labels, train_restaurant_ids = computeFeatures("./data/train.csv", cities_in_train_test, 1, "train");
     print("Generating Features Test data");
     test_features, test_restaurant_ids                 = computeFeatures("./data/test.csv", cities_in_train_test, 1, "test");
-
-    #train_features = SelectKBest(f_regression, k = 30).fit(train_features, train_labels);
-
     
     model                                              = train_model(train_features, train_labels);
 
