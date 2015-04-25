@@ -8,129 +8,81 @@ import math;
 import copy;
 from sklearn.ensemble import RandomForestRegressor;
 from sklearn.grid_search import ParameterGrid;
+from sklearn.preprocessing import OneHotEncoder;
 
-date_format = "%m/%d/%Y";
-imputations = [];
 
-def createListRepresentation(total, index):
-    tt = [];
-    for i in range(0, total):
-        if i == index:
-            tt.append(1);
+def build_FeatureVal(myfile, mydict):
+  with open(myfile, "r") as f:
+
+    header = f.readline(); 
+    for feature in range(0, len(header.strip().split(','))):
+        mydict[feature] = Set();
+
+    for line in f:
+        data = line.strip().split(',');
+        for i in range(0, len(data)):
+            mydict[i].add(data[i]);
+
+    return mydict;
+
+def buildFeatures(myfile, train_feature_val, test_feature_val, data_X, data_Y, data_restaurant_ids, train_or_test="train"):
+  current_date_obj = datetime.strptime('01/01/2015', "%m/%d/%Y");  
+
+  #Prepare integer categorical representation for string variables as Onehot encoder can only handle that
+  common_feature_integer_ranges = dict();
+  for i in [2,3,4]:
+    counter = 1;
+    for val in train_feature_val[i]:
+        if val in test_feature_val[i]:
+          common_feature_integer_ranges[(i, val)] = counter;
+          counter += 1;
+    common_feature_integer_ranges[(i, "NULL")] = counter;
+
+ 
+
+  with open(myfile, "r") as f:
+    next(f);
+    for line in f:
+        data = line.strip().split(',');
+
+        if train_or_test == "train":
+          feature_range = len(data) -1;
+          data_Y.append(float(data[feature_range]));
         else:
-            tt.append(0);
-    return tt;
+          feature_range = len(data);
 
-
-
-
-
-
-def computeFeatures(myfile, cities, ignore, train_or_test="train"):
-    '''
-      Generates a dict of labels
-    '''
-    features    = [];
-    labels      = [];
-
-    restaurant_ids = [];
-
-    current_date_obj = datetime.strptime('01/01/2015', date_format);
-
-
-    categorical_features = ['P5', 'P10', ]
-
-    with open(myfile, "r") as f:
-        next(f);
-        for line in f:
-            data = line.strip().split(',');
-
-            temp = [];
-
-            feature_range = None;
-            if train_or_test == "train":
-                feature_range = len(data) - 2;
+        features = [];
+        for i in range(0, feature_range):
+            if i == 0:
+                data_restaurant_ids.append(data[i]);
+            elif i == 1:
+                days_since_open = (current_date_obj - datetime.strptime(data[i], "%m/%d/%Y")).days;
+                features.append(days_since_open)
             else:
-                feature_range = len(data) - 1;
-
-            for i in range(0, feature_range):
-                if i == 0:
-                    restaurant_ids.append(data[i]);
-                elif i == 1:
-                    days_since_open = (current_date_obj - datetime.strptime(data[i], date_format)).days;
-                    temp.append(days_since_open);
-                elif i == 2:
-                    if ignore == 0:
-                      #Don't add to features yet
-                      cities.add(data[i]); 
-                    elif ignore == 1:
-                      #Compute features
-                      if data[i] in cities:
-                        #City in both train and test
-                        #Get the index
-                        #pass;
-                        temp.extend(createListRepresentation(len(cities), cities.index(data[i])));
-                      else:
-                        #pass;
-                        temp.extend(createListRepresentation(len(cities), 1+ len(cities)));
-                elif i == 3:
-                    if data[i] == "Big Cities":
-                        temp.extend([1,0]);
-                    elif data[i] == "Other":
-                        temp.extend([0,1]);
-                elif i == 4:
-                    if data[i] == "FC":
-                        temp.extend([1,0,0,0]);
-                    elif data[i] == "IL":
-                        temp.extend([0,1,0,0]);
-                    elif data[i] == "DT":
-                        temp.extend([0,0,1,0]);
-                    elif data[i] == "MB":
-                        temp.extend([0,0,0,1]);
+                if data[i] in train_feature_val[i] and data[i] in test_feature_val[i]:
+                    if i in [2,3,4]:
+                       features.append(common_feature_integer_ranges[(i, data[i])]);
+                    else:
+                       features.append(float(data[i]));
                 else:
-                    temp.append(float(data[i]));
+                    if i in [2,3,4]:
+                       features.append(common_feature_integer_ranges[(i, "NULL")]);
+                    else:
+                       features.append(float(data[i])); 
 
-            features.append(temp);
-
-            if train_or_test == "train":
-               labels.append(float(data[len(data)-1]));
-
-
-    
-    features = np.array(features);
-
-    '''
-    if train_or_test == "train":
-      #Impute Missing values for P1 to P37.
-      for i in range(35, len(features[0])):
-        imputations.append(np.mean(features[:, i]));
-
-
-    for i in range(0, len(features)):
-      for k in range(35, len(features[i])):
-         if features[i][k] == 0:
-            features[i][k] = imputations[k-35];
-    '''
-
-    if train_or_test == "train":
-      return features, np.array(labels), restaurant_ids;
-    else:
-      return features, restaurant_ids;
+        data_X.append(features);
 
 
 def calculate_RMSE(estimator, X, y):
-    f = open("data.txt", "a")
     y_hat = estimator.predict(X);
     error = 0;
     for i in range(0, len(y_hat)):
-        f.write(str(y_hat[i]) + "," + str(y[i]) + "\n");
         error += math.pow(y_hat[i] - y[i], 2);
     return math.sqrt(error/float(len(y_hat)));
-    f.close();
 
 
 def train_model(features, label):
-    params          = {'max_features' : 'sqrt', 'n_estimators' : 30, 'n_jobs' : -1 }
+    params          = {'max_features' : 'sqrt', 'n_estimators' : 50, 'n_jobs' : -1 }
     #params         = {'kernel' : 'linear' }
 
     #Preprocessing
@@ -138,7 +90,7 @@ def train_model(features, label):
     scaled_features  = features;
 
     # Set the parameters by cross-validation
-    paramaters_grid   = {'max_depth': [4,5,6], 'min_samples_split' : [2,3,4,5,6,7],  'min_samples_leaf' : [2,3,4,5,6,7]};
+    paramaters_grid   = {'max_depth': [3,4,5,6], 'min_samples_split' : [2,3,4,5,6,7],  'min_samples_leaf' : [2,3,4,5,6,7]};
     # Set the parameters by cross-validation
     #paramaters_grid    = {'C': [0.0000001, 0.001, 0.005, 0.008, 0.01, 0.02, 0.05, 0.07, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 10, 100, 0.004]};
 
@@ -205,26 +157,42 @@ def predict_and_save(model, test_features, test_restaurant_ids):
         f.write(str(test_restaurant_ids[i]) + ","  + str(predictions[i]) + "\n");
     f.close();
 
+  
+
+
+def compute(train, test):
+
+  #Train data
+  train_X              = [];
+  train_restaurant_ids = [];
+  test_X               = [];
+  test_restaurant_ids  = [];
+  train_Y              = [];
+
+  #Common feature values in train/test
+  train_feature_val    = {};
+  test_feature_val     = {};
+
+  build_FeatureVal(train, train_feature_val);
+  build_FeatureVal(test, test_feature_val);
+ 
+  buildFeatures(train, train_feature_val, test_feature_val, train_X, train_Y, train_restaurant_ids, "train");
+  buildFeatures(test, train_feature_val, test_feature_val, test_X, None, test_restaurant_ids, "test");
+
+  enc = OneHotEncoder(categorical_features=np.array([1,2,3,40]), sparse=False);
+
+  enc.fit(test_X);
+
+  train_X = enc.transform(train_X);
+  test_X  = enc.transform(test_X);
+
+  #Build a model
+  estimator = train_model(train_X, np.array(train_Y));
+
+  print("Writing Output");
+  predict_and_save(estimator, test_X, test_restaurant_ids);
+
 if __name__ == '__main__':
-    train_cities = Set();
-    test_cities  = Set();
+    compute("./data/train.csv","./data/test.csv");
 
-
-
-    print("Reading Training data");
-    computeFeatures("./data/train.csv", train_cities, 0, "train");
-    print("Reading Test data");
-    computeFeatures("./data/test.csv", test_cities, 0, "test");
-
-
-    cities_in_train_test = list(test_cities.intersection(train_cities));
-
-    print("Generating Features Training data");
-    train_features, train_labels, train_restaurant_ids = computeFeatures("./data/train.csv", cities_in_train_test, 1, "train");
-    print("Generating Features Test data");
-    test_features, test_restaurant_ids                 = computeFeatures("./data/test.csv", cities_in_train_test, 1, "test");
     
-    model                                              = train_model(train_features, train_labels);
-
-    print("Writing Output");
-    predict_and_save(model, test_features, test_restaurant_ids);
