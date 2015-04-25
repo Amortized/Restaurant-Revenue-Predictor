@@ -9,7 +9,7 @@ import copy;
 from sklearn.ensemble import RandomForestRegressor;
 from sklearn.grid_search import ParameterGrid;
 from sklearn.preprocessing import OneHotEncoder;
-
+from multiprocessing import Pool;
 
 def build_FeatureVal(myfile, mydict):
   with open(myfile, "r") as f:
@@ -81,73 +81,6 @@ def calculate_RMSE(estimator, X, y):
     return math.sqrt(error/float(len(y_hat)));
 
 
-def train_model(features, label):
-    params          = {'max_features' : 'sqrt', 'n_estimators' : 50, 'n_jobs' : -1 }
-    #params         = {'kernel' : 'linear' }
-
-    #Preprocessing
-    #scaled_features = preprocessing.scale(features);
-    scaled_features  = features;
-
-    # Set the parameters by cross-validation
-    paramaters_grid   = {'max_depth': [3,4,5,6], 'min_samples_split' : [2,3,4,5,6,7],  'min_samples_leaf' : [2,3,4,5,6,7]};
-    # Set the parameters by cross-validation
-    #paramaters_grid    = {'C': [0.0000001, 0.001, 0.005, 0.008, 0.01, 0.02, 0.05, 0.07, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 10, 100, 0.004]};
-
-    paramaters_search = list(ParameterGrid(paramaters_grid));
-
-
-    best_rmse         = sys.float_info.max;
-    best_params       = None;
-
-    for ps in paramaters_search:
-        for param in ps.keys():
-            params[str(param)] = ps[param];
-
-
-        total_rmse  = 0.0;
-        count       = 0;
-
-        lpo         = cross_validation.LeaveOneOut(len(scaled_features));
-        for train_index, validation_index in lpo:
-
-            X_train, X_validation = scaled_features[train_index], scaled_features[validation_index];
-            Y_train, Y_validation = label[train_index], label[validation_index];
-
-            #estimator               = SVR(**params)
-            estimator                = RandomForestRegressor(**params)
-
-            estimator.fit(X_train, Y_train);
-
-            current_rmse          = calculate_RMSE(estimator, X_validation, Y_validation);
-
-            total_rmse     += current_rmse;
-            count          += 1;
-
-        #Average across all samples
-        avg_current_rmse   = total_rmse / float(count);
-        #print("Avg Current RMSE " + str(avg_current_rmse));
-
-        if avg_current_rmse < best_rmse:
-            best_rmse   = avg_current_rmse;
-            best_params = copy.deepcopy(params);
-
-        print(params);
-        print("RMSE : " + str(avg_current_rmse));
-
-
-
-    print("Best RMSE : " + str(best_rmse));
-    print("Best Params : " + str(best_params));
-
-
-    #Train the model on the entire set
-    estimator                = RandomForestRegressor(**params)
-    #estimator               = SVR(**best_params)
-    estimator.fit(scaled_features, label);
-    print(estimator.feature_importances_)
-
-    return  estimator;
 
 def predict_and_save(model, test_features, test_restaurant_ids):
     predictions = model.predict(test_features);
@@ -158,7 +91,58 @@ def predict_and_save(model, test_features, test_restaurant_ids):
     f.close();
 
   
+def train_model(features, label, params):
+    #Preprocessing
+    #scaled_features = preprocessing.scale(features);
+    scaled_features  = features;
 
+    total_rmse  = 0.0;
+    count       = 0;
+
+    lpo         = cross_validation.LeaveOneOut(len(scaled_features));
+    for train_index, validation_index in lpo:
+
+        X_train, X_validation = scaled_features[train_index], scaled_features[validation_index];
+        Y_train, Y_validation = label[train_index], label[validation_index];
+
+        #estimator               = SVR(**params)
+        estimator                = RandomForestRegressor(**params)
+
+        estimator.fit(X_train, Y_train);
+
+        current_rmse          = calculate_RMSE(estimator, X_validation, Y_validation);
+
+        total_rmse     += current_rmse;
+        count          += 1;
+
+    #Average across all samples
+    avg_current_rmse   = total_rmse / float(count);
+    print("Avg Current RMSE " + str(avg_current_rmse));
+
+    return  (params, avg_current_rmse);
+
+def train_model_wrapper(args):
+   return train_model(*args);
+
+def generateParams():
+    params           = {'max_features' : 'sqrt', 'n_estimators' : 100, 'n_jobs' : -1 }
+    #params          = {'kernel' : 'linear' }
+
+    # Set the parameters by cross-validation
+    paramaters_grid    = {'max_depth': [3,4,5,6,7,8], 'min_samples_split' : [2,3,4,5,6,7,8],  'min_samples_leaf' : [3,2,4,5,6,7,8]};
+    # Set the parameters by cross-validation
+    #paramaters_grid    = {'C': [0.0000001, 0.001, 0.005, 0.008, 0.01, 0.02, 0.05, 0.07, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 10, 100, 0.004]};
+
+    paramaters_search  = list(ParameterGrid(paramaters_grid));
+
+    parameters_to_try  = [];
+    for ps in paramaters_search:
+        params           = {'max_features' : 'sqrt', 'n_estimators' : 100, 'n_jobs' : -1 }
+        for param in ps.keys():
+            params[str(param)] = ps[param];
+        parameters_to_try.append(copy.copy(params));
+
+    return parameters_to_try;     
 
 def compute(train, test):
 
@@ -179,15 +163,46 @@ def compute(train, test):
   buildFeatures(train, train_feature_val, test_feature_val, train_X, train_Y, train_restaurant_ids, "train");
   buildFeatures(test, train_feature_val, test_feature_val, test_X, None, test_restaurant_ids, "test");
 
-  enc = OneHotEncoder(categorical_features=np.array([1,2,3,40]), sparse=False);
+
+  train_Y = np.array(train_Y);
+
+  enc = OneHotEncoder(categorical_features=np.array([1,2,3,30,31,32,33,34,35,36,37,38,39,40]), sparse=False);
 
   enc.fit(test_X);
 
   train_X = enc.transform(train_X);
   test_X  = enc.transform(test_X);
 
-  #Build a model
-  estimator = train_model(train_X, np.array(train_Y));
+  
+  parameters_to_try = generateParams();
+  print("No of Paramters to test " + str(len(parameters_to_try)));
+
+  #Contruct parameters as s list
+  models_to_try     = [ (copy.copy(train_X), copy.copy(train_Y), parameters_to_try[i] ) for i in range(0, len(parameters_to_try)) ];
+
+  #Create a Thread pool.
+  pool              = Pool(12);
+  results           = pool.map( train_model_wrapper, models_to_try );
+
+  pool.close();
+  pool.join();
+
+
+  best_params       = None;
+  best_rmse         = sys.float_info.max;
+  for i in range(0, len(results)):
+    if results[i][1] < best_rmse:
+        best_rmse   = results[i][1];
+        best_params = results[i][0];
+
+  print("Best Params : " + str(best_params));
+  print("Best RMSE :   " + str(best_rmse));
+
+  #estimator               = SVR(**params)
+  estimator                = RandomForestRegressor(**best_params)
+
+
+  estimator.fit(train_X, train_Y);
 
   print("Writing Output");
   predict_and_save(estimator, test_X, test_restaurant_ids);
