@@ -62,7 +62,7 @@ def computeFeatures(myfile, cities, ignore, train_or_test="train"):
                 elif i == 2:
                     if ignore == 0:
                       #Don't add to features yet
-                      cities.add(data[i]);
+                      cities.add(data[i]); 
                     elif ignore == 1:
                       #Compute features
                       if data[i] in cities:
