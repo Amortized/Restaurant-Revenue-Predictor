@@ -24,6 +24,8 @@ def createListRepresentation(total, index):
 
 
 
+
+
 def computeFeatures(myfile, cities, ignore, train_or_test="train"):
     '''
       Generates a dict of labels
@@ -36,6 +38,7 @@ def computeFeatures(myfile, cities, ignore, train_or_test="train"):
     current_date_obj = datetime.strptime('01/01/2015', date_format);
 
 
+    categorical_features = ['P5', 'P10', ]
 
     with open(myfile, "r") as f:
         next(f);
@@ -127,7 +130,7 @@ def calculate_RMSE(estimator, X, y):
 
 
 def train_model(features, label):
-    params          = {'max_features' : 'sqrt', 'n_estimators' : 30, 'n_jobs' : -1, 'min_samples_leaf' : 3 }
+    params          = {'max_features' : 'sqrt', 'n_estimators' : 30, 'n_jobs' : -1 }
     #params         = {'kernel' : 'linear' }
 
     #Preprocessing
@@ -135,7 +138,7 @@ def train_model(features, label):
     scaled_features  = features;
 
     # Set the parameters by cross-validation
-    paramaters_grid   = {'max_depth': [2,3,4,5,6], 'min_samples_split' : [2,3,4,5,6,7,8,9,10]};
+    paramaters_grid   = {'max_depth': [4,5,6], 'min_samples_split' : [2,3,4,5,6,7],  'min_samples_leaf' : [2,3,4,5,6,7]};
     # Set the parameters by cross-validation
     #paramaters_grid    = {'C': [0.0000001, 0.001, 0.005, 0.008, 0.01, 0.02, 0.05, 0.07, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 10, 100, 0.004]};
 
@@ -205,6 +208,8 @@ def predict_and_save(model, test_features, test_restaurant_ids):
 if __name__ == '__main__':
     train_cities = Set();
     test_cities  = Set();
+
+
 
     print("Reading Training data");
     computeFeatures("./data/train.csv", train_cities, 0, "train");
