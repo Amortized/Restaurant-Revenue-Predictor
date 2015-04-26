@@ -10,6 +10,7 @@ from sklearn.ensemble import RandomForestRegressor;
 from sklearn.grid_search import ParameterGrid;
 from sklearn.preprocessing import OneHotEncoder;
 from multiprocessing import Pool;
+from sklearn.feature_selection import VarianceThreshold
 
 def build_FeatureVal(myfile, mydict):
   with open(myfile, "r") as f:
@@ -166,12 +167,24 @@ def compute(train, test):
 
   train_Y = np.array(train_Y);
 
-  enc = OneHotEncoder(categorical_features=np.array([1,2,3,30,31,32,33,34,35,36,37,38,39,40]), sparse=False);
+  enc = OneHotEncoder(categorical_features=np.array([1,2,3,4,8,9,10,11,12,13,15,19,21,22,30,31,32,33,34,35,36,37,38,39,40]), sparse=False, n_values=100);
 
   enc.fit(test_X);
 
   train_X = enc.transform(train_X);
   test_X  = enc.transform(test_X);
+
+  print("No of train features " +  str(len(train_X[0])));
+  print("No of test features " +  str(len(test_X[0])));
+
+  #Remove features with similar values
+  selector = VarianceThreshold();
+  selector.fit(train_X);
+  train_X = selector.transform(train_X);
+  test_X = selector.transform(test_X);
+
+  print("No of train features " +  str(len(train_X[0])));
+  print("No of test features " +  str(len(test_X[0])));
 
   
   parameters_to_try = generateParams();
