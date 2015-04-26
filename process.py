@@ -26,6 +26,10 @@ def build_FeatureVal(myfile, mydict):
 
     return mydict;
 
+def diff_month(d1, d2):
+    return (d1.year - d2.year)*12 + d1.month - d2.month 
+
+
 def buildFeatures(myfile, train_feature_val, test_feature_val, data_X, data_Y, data_restaurant_ids, train_or_test="train"):
   current_date_obj = datetime.strptime('01/01/2015', "%m/%d/%Y");  
 
@@ -57,8 +61,14 @@ def buildFeatures(myfile, train_feature_val, test_feature_val, data_X, data_Y, d
             if i == 0:
                 data_restaurant_ids.append(data[i]);
             elif i == 1:
-                days_since_open = (current_date_obj - datetime.strptime(data[i], "%m/%d/%Y")).days;
-                features.append(days_since_open)
+                days_since_open  = (current_date_obj - datetime.strptime(data[i], "%m/%d/%Y")).days;
+                months_diff_open = diff_month(current_date_obj, datetime.strptime(data[i], "%m/%d/%Y"));
+                year_diff_open   = current_date_obj.year - datetime.strptime(data[i], "%m/%d/%Y").year;
+
+                features.append(days_since_open);
+                features.append(months_diff_open);
+                features.append(year_diff_open);
+
             else:
                 if data[i] in train_feature_val[i] and data[i] in test_feature_val[i]:
                     if i in [2,3,4]:
@@ -167,7 +177,7 @@ def compute(train, test):
 
   train_Y = np.array(train_Y);
 
-  enc = OneHotEncoder(categorical_features=np.array([1,2,3,4,8,9,10,11,12,13,15,19,21,22,30,31,32,33,34,35,36,37,38,39,40]), sparse=False, n_values=100);
+  enc = OneHotEncoder(categorical_features=np.array([3,4,5,32,33,34,35,36,37,38,39,40,41,42]), sparse=False, n_values=100);
 
   enc.fit(test_X);
 
@@ -194,7 +204,7 @@ def compute(train, test):
   models_to_try     = [ (copy.copy(train_X), copy.copy(train_Y), parameters_to_try[i] ) for i in range(0, len(parameters_to_try)) ];
 
   #Create a Thread pool.
-  pool              = Pool(12);
+  pool              = Pool(6);
   results           = pool.map( train_model_wrapper, models_to_try );
 
   pool.close();
